@@ -4,6 +4,8 @@
 
 A tool for tracing bytecode execution.
 
+Note that this tool currently works on <span style="color:red;">CPython >= 3.7 only</span>, because it relies on a new event `PyTrace_OPCODE`, which is added in CPython 3.7, dispatched inside the [bytecode evaluation loop][ceval_evalframedefault] (known as `ceval.c::PyEval_EvalFrame`).
+
 
 ## Install
 ```bash
@@ -21,3 +23,6 @@ import bytetrace
 bytetrace.set_trace()
 # ... your code
 ```
+
+
+[ceval_evalframedefault]: https://github.com/python/cpython/blob/3.7/Python/ceval.c#L551
