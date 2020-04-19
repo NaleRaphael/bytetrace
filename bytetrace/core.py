@@ -1,6 +1,5 @@
-import dis, builtins, sys
+import dis, builtins, sys, inspect
 from pdb import Pdb as BuiltinPdb
-from pdb import set_trace as _Pdb_set_trace
 
 
 # build a map for opcodes that defined in `dis.hasconst`, `dis.hasfree`, ...
@@ -20,14 +19,28 @@ COLLECTION_PROCESS = {
 }
 
 
-class Pdb(BuiltinPdb):
+def set_traceop_flag(frame, enabled):
+    while frame:
+        frame.f_trace_opcodes = enabled
+        frame = frame.f_back
+
+
+class OPTracer(BuiltinPdb):
+    def __init__(self, *args, **kwargs):
+        super(OPTracer, self).__init__(*args, **kwargs)
+        self.prompt = '(OPTracer) '
+
     def trace_dispatch(self, frame, event, arg):
         if self.quitting:
             return # None
         if event == 'opcode':
             return self.dispatch_opcode(frame, arg)
         if event == 'line':
-            return self.dispatch_line(frame)
+            # skip `line` event if we are tracing opcode
+            if frame.f_trace_opcodes:
+                return self.trace_dispatch
+            else:
+                return self.dispatch_line(frame)
         if event == 'call':
             return self.dispatch_call(frame, arg)
         if event == 'return':
@@ -46,7 +59,7 @@ class Pdb(BuiltinPdb):
     def dispatch_opcode(self, frame, arg):  # `arg` is always None here
         opcode, oparg = self.parse_opcode_oparg(frame)
         print('--- opcode: {}, oparg: {}'.format(dis.opname[opcode], oparg))
-        print('--- f_locals: {}'.format(frame.f_locals))
+        self.user_line(frame)
         return self.trace_dispatch
 
     def parse_opcode_oparg(self, frame):
@@ -62,11 +75,42 @@ class Pdb(BuiltinPdb):
                 oparg = int_arg
         return opcode, oparg
 
+    def do_quit(self, arg):
+        """q(uit)\nexit
+        Quit from this opcode tracer. Entering this command again to quit
+        from debugger (pdb).
+        """
+        if not self.botframe.f_trace_opcodes:
+            return super(OPTracer, self).do_quit(arg)
+        f = sys._getframe().f_back
+        set_traceop_flag(f, False)
+        self.prompt = '(pdb) '
+        print('--- leaving opcode tracing mode ---')
+
+    do_q = do_quit
+    do_exit = do_quit
+
+    def do_print_f_locals(self, arg):
+        """print_f_locals expression
+        Print `f_locals` of current frame.
+        """
+        print(self.curframe.f_locals)
+
+    do_pfl = do_print_f_locals
+
+    def do_trace_op(self, arg):
+        """trace_op expression
+        Enter mode for tracing opcode.
+        """
+        f = sys._getframe().f_back
+        set_traceop_flag(f, True)
+        self.prompt = '(OPTracer) '
+
 
 def set_trace(*, header=None, trace_opcode=True):
-    pdb = Pdb()
+    tracer = OPTracer()
     if header is not None:
-        pdb.message(header)
+        tracer.message(header)
     f = sys._getframe().f_back
-    f.f_trace_opcodes = trace_opcode
-    pdb.set_trace(f)
+    set_traceop_flag(f, True)
+    tracer.set_trace(f)

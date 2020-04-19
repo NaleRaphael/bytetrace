@@ -24,5 +24,11 @@ bytetrace.set_trace()
 # ... your code
 ```
 
+### Commands
+- q(uit)
+    Enter this command twice to quit from debugger.
+
+- pfl (print_f_locals)
+    Print `f_locals` of current frame. (equivalent to `inspect.currentframe().f_locals`)
 
 [ceval_evalframedefault]: https://github.com/python/cpython/blob/3.7/Python/ceval.c#L551
